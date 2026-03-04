@@ -47,10 +47,7 @@ unsigned int calculate_checksum(struct tar_t* entry){
     return check;
 }
 
-int getnbr(){
-	int test = rand() % (95) + 32  ;
-	return test;
-}
+int getnbr(){ return rand() % (95) + 32; }
 
 void fuzzFunction(){
 	srand(time(NULL));
@@ -63,24 +60,27 @@ void fuzzFunction(){
     char potential_chksum[8] = "";
     char potential_typeflag;
     char potential_linkname[100] = "";
-    char potential_magic[6] = "";
-    char potential_version[2] = "";
+    char potential_magic[6] = "ustar";
+    char potential_version[2] = "00";
     char potential_uname[32] = "";
     char potential_gname[32] = "";
-	for (int x = 0; x < 100; x++){
+
+	for (int x = 0; x < 99; x++){
 		int ranvalue = getnbr();
-        printf("%c ", (char) ranvalue);
 		potential_name[x] = (char) ranvalue;
 	}
-
+    potential_name[99] = '\0';
 	FILE *archive = fopen("archive.tar", "wb");
 
-	struct tar_t testing = {
-        .name = potential_name	
-    };
-    calculate_checksum(&testing);
+	struct tar_t broken_header;
+    memset(&broken_header, 0, sizeof(broken_header));
+    memcpy(broken_header.name, potential_name, sizeof(broken_header.name));
+    memcpy(broken_header.magic, potential_magic, sizeof(broken_header.magic));
+    memcpy(broken_header.version, potential_version, sizeof(broken_header.version));
 
-	fwrite(&testing, sizeof(testing), 1, archive);
+    calculate_checksum(&broken_header);
+
+	fwrite(&broken_header, sizeof(broken_header), 1, archive);
 	fclose(archive);
 }
 
@@ -96,38 +96,40 @@ void fuzzFunction(){
  * compile it and use the executable to restart our computer.
  */
 int main(int argc, char* argv[])
-{
-    fuzzFunction();
-    if (argc < 2)
-        return -1;
+{   
     int rv = 0;
-    char cmd[51];
-    strncpy(cmd, argv[1], 25);
-    cmd[26] = '\0';
-    strncat(cmd, " archive.tar", 25);
-    char buf[33];
-    FILE *fp;
-    if ((fp = popen(cmd, "r")) == NULL) {
-        printf("Error opening pipe!\n");
-        return -1;
-    }
+    for (int a = 0; a < 10; a++){
+        fuzzFunction();
+        if (argc < 2)
+            return -1;
+        char cmd[51];
+        strncpy(cmd, argv[1], 25);
+        cmd[26] = '\0';
+        strncat(cmd, " archive.tar", 25);
+        char buf[33];
+        FILE *fp;
+        if ((fp = popen(cmd, "r")) == NULL) {
+            printf("Error opening pipe!\n");
+            return -1;
+        }
 
-    if(fgets(buf, 33, fp) == NULL) {
-        printf("No output\n");
-        goto finally;
-    }
-    if(strncmp(buf, "*** The program has crashed ***\n", 33)) {
-        printf("Not the crash message\n");
-        goto finally;
-    } else {
-        printf("Crash message\n");
-        rv = 1;
-        goto finally;
-    }
-    finally:
-    if(pclose(fp) == -1) {
-        printf("Command not found\n");
-        rv = -1;
+        if(fgets(buf, 33, fp) == NULL) {
+            printf("No output\n");
+            goto finally;
+        }
+        if(strncmp(buf, "*** The program has crashed ***\n", 33)) {
+            printf("Not the crash message\n");
+            goto finally;
+        } else {
+            printf("Crash message\n");
+            rv = 1;
+            goto finally;
+        }
+        finally:
+        if(pclose(fp) == -1) {
+            printf("Command not found\n");
+            rv = -1;
+        }
     }
     return rv;
 }
