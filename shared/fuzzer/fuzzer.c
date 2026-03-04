@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 struct tar_t
 {                              /* byte offset */
@@ -23,23 +24,62 @@ struct tar_t
     char padding[12];             /* 500 */
 };
 
+/**
+ * Computes the checksum for a tar header and encode it on the header
+ * @param entry: The tar header
+ * @return the value of the checksum
+ */
+unsigned int calculate_checksum(struct tar_t* entry){
+    // use spaces for the checksum bytes while calculating the checksum
+    memset(entry->chksum, ' ', 8);
+
+    // sum of entire metadata
+    unsigned int check = 0;
+    unsigned char* raw = (unsigned char*) entry;
+    for(int i = 0; i < 512; i++){
+        check += raw[i];
+    }
+
+    snprintf(entry->chksum, sizeof(entry->chksum), "%06o0", check);
+
+    entry->chksum[6] = '\0';
+    entry->chksum[7] = ' ';
+    return check;
+}
+
 int getnbr(){
 	int test = rand() % (95) + 32  ;
 	return test;
 }
 
-void fuzzzzz(){
-	char test[100] = "";
+void fuzzFunction(){
+	srand(time(NULL));
+	char potential_name[100] = "";
+    char potential_mode[8] = "";
+    char potential_uid[8] = "";
+    char potential_gid[8] = "";
+    char potential_size[12] = "";
+    char potential_mtime[12] = "";
+    char potential_chksum[8] = "";
+    char potential_typeflag;
+    char potential_linkname[100] = "";
+    char potential_magic[6] = "";
+    char potential_version[2] = "";
+    char potential_uname[32] = "";
+    char potential_gname[32] = "";
 	for (int x = 0; x < 100; x++){
 		int ranvalue = getnbr();
-		test[x] = (char) ranvalue;
+        printf("%c ", (char) ranvalue);
+		potential_name[x] = (char) ranvalue;
 	}
-	printf(test);
+
 	FILE *archive = fopen("archive.tar", "wb");
 
 	struct tar_t testing = {
-		.name = test	
-};
+        .name = potential_name	
+    };
+    calculate_checksum(&testing);
+
 	fwrite(&testing, sizeof(testing), 1, archive);
 	fclose(archive);
 }
@@ -57,7 +97,7 @@ void fuzzzzz(){
  */
 int main(int argc, char* argv[])
 {
-   fuzzzzz();
+    fuzzFunction();
     if (argc < 2)
         return -1;
     int rv = 0;
@@ -92,25 +132,4 @@ int main(int argc, char* argv[])
     return rv;
 }
 
-/**
- * Computes the checksum for a tar header and encode it on the header
- * @param entry: The tar header
- * @return the value of the checksum
- */
-unsigned int calculate_checksum(struct tar_t* entry){
-    // use spaces for the checksum bytes while calculating the checksum
-    memset(entry->chksum, ' ', 8);
 
-    // sum of entire metadata
-    unsigned int check = 0;
-    unsigned char* raw = (unsigned char*) entry;
-    for(int i = 0; i < 512; i++){
-        check += raw[i];
-    }
-
-    snprintf(entry->chksum, sizeof(entry->chksum), "%06o0", check);
-
-    entry->chksum[6] = '\0';
-    entry->chksum[7] = ' ';
-    return check;
-}
