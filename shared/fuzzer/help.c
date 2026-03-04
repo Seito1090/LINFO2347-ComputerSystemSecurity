@@ -23,27 +23,6 @@ struct tar_t
     char padding[12];             /* 500 */
 };
 
-int getnbr(){
-	int test = rand() % (95) + 32  ;
-	return test;
-}
-
-void fuzzzzz(){
-	char test[100] = "";
-	for (int x = 0; x < 100; x++){
-		int ranvalue = getnbr();
-		test[x] = (char) ranvalue;
-	}
-	printf(test);
-	FILE *archive = fopen("archive.tar", "wb");
-
-	struct tar_t testing = {
-		.name = test	
-};
-	fwrite(&testing, sizeof(testing), 1, archive);
-	fclose(archive);
-}
-
 /**
  * Launches another executable given as argument,
  * parses its output and check whether or not it matches "*** The program has crashed ***".
@@ -57,7 +36,6 @@ void fuzzzzz(){
  */
 int main(int argc, char* argv[])
 {
-   fuzzzzz();
     if (argc < 2)
         return -1;
     int rv = 0;
