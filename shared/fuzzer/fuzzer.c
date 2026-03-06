@@ -42,15 +42,27 @@ unsigned int calculate_checksum(struct tar_t* entry){
 
     snprintf(entry->chksum, sizeof(entry->chksum), "%06o0", check);
 
-    entry->chksum[6] = '\0';
-    entry->chksum[7] = ' ';
+    entry->chksum[6] = '\0'; // ?
+    entry->chksum[7] = ' '; // ?
     return check;
 }
 
+/**
+* Generates a number between in [32, 126], so printable ASCII char
+*/
 int getnbr(){ return rand() % (95) + 32; }
 
-void fuzzFunction(){
+/**
+* Testing various modification of broken tar files to test if it crashes the tar extractor.
+* @param test_index : The test (archive modification) to try
+*/
+void fuzzFunction(int test_index){
 	srand(time(NULL));
+
+// Your fuzzer must work with archives: you cannot just try different values for different fields in the
+// header. You must deal with headers with and without data, with archives containing multiple files, etc.
+
+    // Why those values ? Create a valide archive then modifying on part of it ?
 	char potential_name[100] = "";
     char potential_mode[8] = "";
     char potential_uid[8] = "";
@@ -65,23 +77,43 @@ void fuzzFunction(){
     char potential_uname[32] = "";
     char potential_gname[32] = "";
 
-	for (int x = 0; x < 99; x++){
-		int ranvalue = getnbr();
-		potential_name[x] = (char) ranvalue;
-	}
-    potential_name[99] = '\0';
-	FILE *archive = fopen("archive.tar", "wb");
+    // TODO : make several case for each test to try
+    switch(test_index) {
 
-	struct tar_t broken_header;
-    memset(&broken_header, 0, sizeof(broken_header));
-    memcpy(broken_header.name, potential_name, sizeof(broken_header.name));
-    memcpy(broken_header.magic, potential_magic, sizeof(broken_header.magic));
-    memcpy(broken_header.version, potential_version, sizeof(broken_header.version));
+        // =========== TEST 1 - BROKEN NAME (ascii) ===========
+        case 0:
 
-    calculate_checksum(&broken_header);
+        // Why would a random **ASCII** name break something ???? just test 1 fixed name different from the file
+            for (int x = 0; x < 99; x++){
+                int ranvalue = getnbr();
+                potential_name[x] = (char) ranvalue;
+            }
+            potential_name[99] = '\0';
+            FILE *archive = fopen("archive.tar", "wb");
 
-	fwrite(&broken_header, sizeof(broken_header), 1, archive);
-	fclose(archive);
+            struct tar_t broken_header;
+            memset(&broken_header, 0, sizeof(broken_header));
+            memcpy(broken_header.name, potential_name, sizeof(broken_header.name));
+            memcpy(broken_header.magic, potential_magic, sizeof(broken_header.magic));
+            memcpy(broken_header.version, potential_version, sizeof(broken_header.version));
+
+            calculate_checksum(&broken_header);
+
+            fwrite(&broken_header, sizeof(broken_header), 1, archive);
+            fclose(archive);
+
+        //=========== TEST 2 - BROKEN NAME (non ascii) ===========
+        case 1:
+            println("todo");
+
+
+        //....
+
+
+        default:
+            println("Wrong test index");
+    }
+
 }
 
 /**
@@ -97,17 +129,24 @@ void fuzzFunction(){
  */
 int main(int argc, char* argv[])
 {   
+
+    int crash_count = 0;
     int rv = 0;
+    int test_index = 0;
     for (int a = 0; a < 10; a++){
-        fuzzFunction();
+        fuzzFunction(test_index);
         if (argc < 2)
             return -1;
+
+        // command to execute : "executable" "archive.tar" ("./bug0 archive.tar")
         char cmd[51];
         strncpy(cmd, argv[1], 25);
         cmd[26] = '\0';
         strncat(cmd, " archive.tar", 25);
+
         char buf[33];
         FILE *fp;
+        // execute the command
         if ((fp = popen(cmd, "r")) == NULL) {
             printf("Error opening pipe!\n");
             return -1;
@@ -117,13 +156,20 @@ int main(int argc, char* argv[])
             printf("No output\n");
             goto finally;
         }
+
+        // +-1 (non zero = True) if strings different
         if(strncmp(buf, "*** The program has crashed ***\n", 33)) {
             printf("Not the crash message\n");
-            goto finally;
+            goto finally; 
         } else {
             printf("Crash message\n");
+            
+            // TODO : Crash detected -> save the archive with a name starting "success_"
+            crash_count++;
+            // rename archive
+
             rv = 1;
-            goto finally;
+            goto finally; // why jump to finally ?
         }
         finally:
         if(pclose(fp) == -1) {
